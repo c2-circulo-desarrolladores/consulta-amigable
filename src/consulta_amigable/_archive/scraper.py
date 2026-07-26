@@ -9,7 +9,7 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-from consulta_amigable.archive import SearchTextStep, Step
+from consulta_amigable._archive import SearchTextStep, Step
 
 from .constants import COLORS_PROGRESS, get_config
 from .utils import (

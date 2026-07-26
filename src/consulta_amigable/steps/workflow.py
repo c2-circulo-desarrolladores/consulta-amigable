@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 
-from consulta_amigable.constants import BTN
 from consulta_amigable.steps import ClickBtn, Rows, SavePartial, Search
 
 STEPS = ClickBtn | Rows | SavePartial | Search
@@ -65,69 +64,3 @@ class Workflow:
             result.append(Step(rows=rows, click=click, save=save, search=search))
 
         return result
-
-
-input = [
-    Rows(["total"]),
-    ClickBtn(BTN.NIVEL_GOBIERNO),
-    ###############
-    # click en la fila que tenga 'locales' y click en generica
-    Rows(["locales"]),
-    ClickBtn(BTN.GOB_LOCALES_MANCOMUNIDADES),
-    ########
-    Rows(["municipalidades"]),
-    ClickBtn(BTN.GENERICA),
-    ###############
-    Rows(),
-    # cuando no se define nada entonces se guarda la informacion de todas las filas y se iterara fila por fila los siguientes pasos
-    ClickBtn(BTN.DEPARTAMENTO),
-    # definimos el save partial para guardar progreso
-    SavePartial(filename_prefix="departamento"),
-    #############
-    # solo estos departamentos
-    Rows(["ica", "junin", "piura"]),
-    ClickBtn(BTN.MUNICIPALIDAD),
-    Search("provincial"),
-]
-
-output = [
-    Step(
-        rows=Rows(["total"]),
-        click=ClickBtn(BTN.NIVEL_GOBIERNO),
-    ),
-    ###############
-    # click en la fila que tenga 'locales' y click en generica
-    Step(
-        rows=Rows(["locales"]),
-        click=ClickBtn(BTN.GOB_LOCALES_MANCOMUNIDADES),
-    ),
-    ########
-    Step(
-        rows=Rows(["municipalidades"]),
-        click=ClickBtn(BTN.GENERICA),
-    ),
-    ###############
-    Step(
-        rows=Rows(),
-        # cuando no se define nada entonces se guarda la informacion de todas las filas y se iterara fila por fila los siguientes pasos
-        click=ClickBtn(BTN.DEPARTAMENTO),
-        # definimos el save partial para guardar progreso
-        save=SavePartial(filename_prefix="departamento"),
-    ),
-    #############
-    Step(
-        # solo estos departamentos
-        rows=Rows(["ica", "junin", "piura"]),
-        click=ClickBtn(BTN.MUNICIPALIDAD),
-        search=Search("provincial"),
-    ),
-]
-
-
-if __name__ == "__main__":
-    from rich import print
-
-    print(input)
-
-    wk = Workflow(input)
-    print(wk.p_steps)

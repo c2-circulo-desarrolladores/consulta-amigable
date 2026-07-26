@@ -7,8 +7,9 @@ from dataclasses import dataclass
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from perustats.MEF.utils.html import STATESHTML, extract_states, get_button_label
-from perustats.MEF.utils.tables import html_table_to_dataframe
+
+from consulta_amigable.utils.html import STATESHTML, extract_states, get_button_label
+from consulta_amigable.utils.tables import html_table_to_dataframe
 
 
 def build_search_payload(

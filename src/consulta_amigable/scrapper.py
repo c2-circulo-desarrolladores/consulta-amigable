@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Literal
 
 import pandas as pd
-from rich import print
+import requests
 
 from consulta_amigable.constants.config import Config, get_config
 from consulta_amigable.steps.click import Search
@@ -17,36 +17,32 @@ from consulta_amigable.utils.http import (
 from consulta_amigable.utils.parse_file import filename_save
 from consulta_amigable.utils.tables import filter_content
 
-print
-post_info
-
 
 class MEFScraper:
     def __init__(
         self,
-        steps=[],
+        steps: list,
         tipo: Literal["gasto", "ingreso"] = "gasto",
         act_proy: Literal["ActProy", "Actividad", "Proyecto"] = "ActProy",
         master_dir_save: str = "./data/mef/",
         convert_numeric: bool = True,
     ):
-        if tipo not in ["gasto", "ingreso"]:
+        if tipo not in ("gasto", "ingreso"):
             raise ValueError(f"Tipo '{tipo}' no válido. Use 'gasto' o 'ingreso'")
 
         wk = Workflow(steps)
         self.steps = wk.p_steps
-        self.tipo = tipo
+        self.tipo: Literal["gasto", "ingreso"] = tipo
         self.master_dir_save = Path(master_dir_save)
         self.act_proy = act_proy
         self.convert_numeric = convert_numeric
 
         # Configuración que se establecerá al ejecutar run()
-        self.config = None
-
-        self.year = None
-        self.session = None
-        self.url = None
-        self.cols = None
+        self.year: int
+        self.config: Config
+        self.session: requests.Session
+        self.url: str
+        self.cols: list
         self.buttons = None
         self.button_labels = None
         self.save_dir = None

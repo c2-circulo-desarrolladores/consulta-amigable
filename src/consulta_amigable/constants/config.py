@@ -1,7 +1,7 @@
 "generales"
 
 from dataclasses import dataclass
-from typing import List, Literal
+from typing import Literal
 
 from .reference import (
     GASTO_URL_V4,
@@ -19,7 +19,7 @@ from .tables import COLUMNS_GASTO_V4, COLUMNS_GASTO_V5, COLUMNS_INGRESO
 class Config:
     years: range
     url: str
-    columns: List[str]
+    columns: list[str]
 
 
 CONFIG_GASTO = {

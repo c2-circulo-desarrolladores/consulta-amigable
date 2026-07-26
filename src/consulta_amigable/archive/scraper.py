@@ -8,7 +8,8 @@ from typing import List, Optional
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from perustats.MEF.step import SearchTextStep, Step
+
+from consulta_amigable.archive import SearchTextStep, Step
 
 from .constants import COLORS_PROGRESS, get_config
 from .utils import (
@@ -62,11 +63,11 @@ class MEFScraper:
         self.master_dir_save.mkdir(parents=True, exist_ok=True)
 
         # Configuración que se establecerá al ejecutar run()
-        self.year = None
+        self.year: int
         self.config = None
-        self.session = None
-        self.url = None
-        self.cols = None
+        self.session: requests.Session
+        self.url: str
+        self.cols: list
         self.buttons = None
         self.button_labels = None
         self.save_dir = None
@@ -253,7 +254,7 @@ class MEFScraper:
         color = self.colors[step_idx % len(self.colors)]
         is_final = step_idx + 1 == n_steps
         should_save = step_config.save_group
-        click_bttn = step_config.click_bttn
+        click_btn = step_config.click_bttn
         name_col = step_config.name
         step_description = step_config.desc or f"Paso {step_idx + 1}"
         text_search = step_config.select_row_text
@@ -287,7 +288,7 @@ class MEFScraper:
                 soup,
                 self.year,
                 state,
-                click_bttn,
+                click_btn,
                 grp,
                 self.buttons,
                 self.button_labels,
@@ -348,7 +349,7 @@ class MEFScraper:
                 soup,
                 self.year,
                 state,
-                click_bttn,
+                click_btn,
                 grp,
                 self.buttons,
                 self.button_labels,

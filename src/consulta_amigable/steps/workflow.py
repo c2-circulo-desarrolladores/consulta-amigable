@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
-from perustats.MEF.constants import buttons as btn
-from perustats.MEF.steps.click import ClickBtn, Rows, SavePartial, Search
+from consulta_amigable.constants import BTN
+from consulta_amigable.steps import ClickBtn, Rows, SavePartial, Search
 
 STEPS = ClickBtn | Rows | SavePartial | Search
 
@@ -69,48 +69,48 @@ class Workflow:
 
 input = [
     Rows(["total"]),
-    ClickBtn(btn.NIVEL_GOBIERNO),
+    ClickBtn(BTN.NIVEL_GOBIERNO),
     ###############
     # click en la fila que tenga 'locales' y click en generica
     Rows(["locales"]),
-    ClickBtn(btn.GOB_LOCALES_MANCOMUNIDADES),
+    ClickBtn(BTN.GOB_LOCALES_MANCOMUNIDADES),
     ########
     Rows(["municipalidades"]),
-    ClickBtn(btn.GENERICA),
+    ClickBtn(BTN.GENERICA),
     ###############
     Rows(),
     # cuando no se define nada entonces se guarda la informacion de todas las filas y se iterara fila por fila los siguientes pasos
-    ClickBtn(btn.DEPARTAMENTO),
+    ClickBtn(BTN.DEPARTAMENTO),
     # definimos el save partial para guardar progreso
     SavePartial(filename_prefix="departamento"),
     #############
     # solo estos departamentos
     Rows(["ica", "junin", "piura"]),
-    ClickBtn(btn.MUNICIPALIDAD),
+    ClickBtn(BTN.MUNICIPALIDAD),
     Search("provincial"),
 ]
 
 output = [
     Step(
         rows=Rows(["total"]),
-        click=ClickBtn(btn.NIVEL_GOBIERNO),
+        click=ClickBtn(BTN.NIVEL_GOBIERNO),
     ),
     ###############
     # click en la fila que tenga 'locales' y click en generica
     Step(
         rows=Rows(["locales"]),
-        click=ClickBtn(btn.GOB_LOCALES_MANCOMUNIDADES),
+        click=ClickBtn(BTN.GOB_LOCALES_MANCOMUNIDADES),
     ),
     ########
     Step(
         rows=Rows(["municipalidades"]),
-        click=ClickBtn(btn.GENERICA),
+        click=ClickBtn(BTN.GENERICA),
     ),
     ###############
     Step(
         rows=Rows(),
         # cuando no se define nada entonces se guarda la informacion de todas las filas y se iterara fila por fila los siguientes pasos
-        click=ClickBtn(btn.DEPARTAMENTO),
+        click=ClickBtn(BTN.DEPARTAMENTO),
         # definimos el save partial para guardar progreso
         save=SavePartial(filename_prefix="departamento"),
     ),
@@ -118,7 +118,7 @@ output = [
     Step(
         # solo estos departamentos
         rows=Rows(["ica", "junin", "piura"]),
-        click=ClickBtn(btn.MUNICIPALIDAD),
+        click=ClickBtn(BTN.MUNICIPALIDAD),
         search=Search("provincial"),
     ),
 ]

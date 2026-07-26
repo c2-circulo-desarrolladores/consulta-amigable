@@ -1,20 +1,21 @@
 from pathlib import Path
-from typing import List, Literal
+from typing import Literal
 
 import pandas as pd
-from perustats.MEF.constants.config import Config, get_config
-from perustats.MEF.steps.click import Search
-from perustats.MEF.steps.workflow import Workflow
-from perustats.MEF.utils.html import STATESHTML, has_search_panel
-from perustats.MEF.utils.http import (
+from rich import print
+
+from consulta_amigable.constants.config import Config, get_config
+from consulta_amigable.steps.click import Search
+from consulta_amigable.steps.workflow import Workflow
+from consulta_amigable.utils.html import STATESHTML, has_search_panel
+from consulta_amigable.utils.http import (
     build_payload,
     build_search_payload,
     init_session,
     post_info,
 )
-from perustats.MEF.utils.parse_file import filename_save
-from perustats.MEF.utils.tables import filter_content
-from rich import print
+from consulta_amigable.utils.parse_file import filename_save
+from consulta_amigable.utils.tables import filter_content
 
 print
 post_info
@@ -85,7 +86,7 @@ class MEFScraper:
         soup = initial_config.soup
         df = initial_config.df
         # session = initial_config.session
-        result = self._proces_step(
+        result = self._process_step(
             step_idx=0,
             df=df,
             state=initial_states,
@@ -125,14 +126,14 @@ class MEFScraper:
 
         return new_soup, new_states, new_df
 
-    def _proces_step(
+    def _process_step(
         self,
         soup,
         step_idx: int,
         state: STATESHTML,
         df: pd.DataFrame,
         metadata: dict,
-    ) -> List[pd.DataFrame]:
+    ) -> list[pd.DataFrame]:
 
         steps = self.steps
         is_final = step_idx + 1 == len(steps)
@@ -196,7 +197,7 @@ class MEFScraper:
 
                 results.append(child_df)
             else:
-                child = self._proces_step(
+                child = self._process_step(
                     soup=child_soup,
                     step_idx=step_idx + 1,
                     state=child_states,

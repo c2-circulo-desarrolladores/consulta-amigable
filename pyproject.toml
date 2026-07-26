@@ -32,7 +32,14 @@ Repository = "https://github.com/c2-circulo-desarrolladores/consulta-amigable"
 Changelog = "https://github.com/c2-circulo-desarrolladores/consulta-amigable/blob/main/CHANGELOG.md"
 
 [dependency-groups]
-dev = ["commitizen", "git-cliff", "pre-commit", "pytest", "ruff"]
+dev = [
+    "commitizen",
+    "git-cliff",
+    "pandas>=3.0.5",
+    "pre-commit",
+    "pytest",
+    "ruff",
+]
 
 [build-system]
 requires = ["hatchling"]

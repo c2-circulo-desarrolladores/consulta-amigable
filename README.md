@@ -1,4 +1,4 @@
-# MEF-CA
+# consulta-amigable
 Consulta amigable del MEF
 
 ## Proyectos

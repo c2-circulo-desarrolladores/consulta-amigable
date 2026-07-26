@@ -1,8 +1,11 @@
 "utils para manejar tablas"
 
 from dataclasses import dataclass
+from difflib import get_close_matches
 
 from bs4 import BeautifulSoup
+
+from ..constants import buttons as BTN
 
 # print("asv")
 
@@ -28,13 +31,55 @@ class STATESHTML:
         )
 
 
+def _btn_value_to_name_map() -> dict[str, str]:
+    return {
+        value: name
+        for name, value in vars(BTN).items()
+        if not name.startswith("_") and isinstance(value, str)
+    }
+
+
 def get_button_label(soup: BeautifulSoup, id_button_label: str) -> str:
-    # print(id_button_label)
     label = soup.find("input", {"name": id_button_label})
+    if label is None:
+        available_values: list[str] = [
+            name
+            for inp in soup.find_all("input")
+            if (name := inp.get("name")) is not None
+        ]
+
+        suggestions = get_close_matches(
+            id_button_label, available_values, n=1, cutoff=0.6
+        )
+
+        value_map = _btn_value_to_name_map()
+        requested_name = value_map.get(id_button_label)
+        requested_label = (
+            f"'{id_button_label}' (BTN.{requested_name})"
+            if requested_name
+            else f"'{id_button_label}'"
+        )
+
+        msg = f"El botón {requested_label} no existe o no se implementa en este paso."
+
+        if suggestions:
+            suggested_value = suggestions[0]
+            suggested_name = value_map.get(suggested_value, suggested_value)
+            msg += (
+                f" ¿Tal vez querías usar el botón "
+                f"'{suggested_value}' (BTN.{suggested_name})?"
+            )
+
+        raise ValueError(msg)
+
     button_label = label.get("value")
     if button_label is not None:
         return button_label
-    raise ValueError("No existe o no se implemente esa iteraccion con ese boton")
+
+    raise ValueError(
+        f"El botón '{id_button_label}' existe pero no tiene atributo 'value' "
+        "(no se puede interactuar con él)."
+    )
 
 
 def extract_states(soup: BeautifulSoup) -> STATESHTML:

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-import pandas as pd
+import narwhals as nw
 import requests
 
 from consulta_amigable.constants.config import Config, get_config
@@ -22,6 +22,7 @@ class MEFScraper:
     def __init__(
         self,
         steps: list,
+        backend: Literal["pandas", "polars"] = "polars",
         tipo: Literal["gasto", "ingreso"] = "gasto",
         act_proy: Literal["ActProy", "Actividad", "Proyecto"] = "ActProy",
         master_dir_save: str = "./data/mef/",
@@ -31,8 +32,9 @@ class MEFScraper:
             raise ValueError(f"Tipo '{tipo}' no válido. Use 'gasto' o 'ingreso'")
 
         wk = Workflow(steps)
-        self.steps = wk.p_steps
         self.tipo: Literal["gasto", "ingreso"] = tipo
+        self.backend: Literal["pandas", "polars"] = backend
+        self.steps = wk.p_steps
         self.master_dir_save = Path(master_dir_save)
         self.act_proy = act_proy
         self.convert_numeric = convert_numeric
@@ -43,9 +45,26 @@ class MEFScraper:
         self.session: requests.Session
         self.url: str
         self.cols: list
-        self.buttons = None
-        self.button_labels = None
-        self.save_dir = None
+        self.save_dir: Path
+
+    def run(self, year: int) -> "MEFScraper":
+        self._setup_year(year=year)
+
+        initial_config = self.initial_session
+        initial_states = initial_config.states
+        soup = initial_config.soup
+        df = initial_config.df
+        # session = initial_config.session
+        result = self._process_step(
+            step_idx=0,
+            df=df,
+            state=initial_states,
+            soup=soup,
+            metadata={"year": [year]},
+        )
+        self.result = nw.concat(result)
+
+        return self
 
     def _do_post(self, soup, state: STATESHTML, grp, click_bttn, extras=None):
         payload = build_payload(
@@ -73,25 +92,6 @@ class MEFScraper:
         if path.exists():
             return True
         return False
-
-    def run(self, year: int) -> "MEFScraper":
-        self._setup_year(year=year)
-
-        initial_config = self.initial_session
-        initial_states = initial_config.states
-        soup = initial_config.soup
-        df = initial_config.df
-        # session = initial_config.session
-        result = self._process_step(
-            step_idx=0,
-            df=df,
-            state=initial_states,
-            soup=soup,
-            metadata={"year": [year]},
-        )
-        self.result = pd.concat(result)
-
-        return self
 
     def _execute_search_step(self, soup, state, df, post_step: Search):
         """ejecuta esto cuando tengo un Step y Search diferente a None"""
@@ -127,9 +127,9 @@ class MEFScraper:
         soup,
         step_idx: int,
         state: STATESHTML,
-        df: pd.DataFrame,
+        df: nw.DataFrame,
         metadata: dict,
-    ) -> list[pd.DataFrame]:
+    ) -> list[nw.DataFrame]:
 
         steps = self.steps
         is_final = step_idx + 1 == len(steps)
@@ -158,7 +158,7 @@ class MEFScraper:
         df_filtered = filter_content(df, text_search)
         results = []
 
-        for i, row in df_filtered.iterrows():
+        for row in df_filtered.iter_rows(named=True):
             grp = row.get(columns[0])
             current_meta = metadata.copy()
             current_value = row.get(columns[1])
@@ -184,11 +184,14 @@ class MEFScraper:
 
             if is_final:
                 last_name = step.click.name
-                meta_df = pd.DataFrame(current_meta)
+                meta_values = {k: v[0] for k, v in current_meta.items()}
+
                 child_df = (
-                    child_df.assign(**meta_df.iloc[0].to_dict())
-                    .drop(columns=[columns[0]])
-                    .rename(columns={columns[1]: last_name})
+                    child_df.with_columns(
+                        **{k: nw.lit(v) for k, v in meta_values.items()}
+                    )
+                    .drop(columns[0])
+                    .rename({columns[1]: last_name})
                 )
 
                 results.append(child_df)
@@ -220,7 +223,9 @@ class MEFScraper:
         else:
             url = config.url.format(year=year)
 
-        initial_session = init_session(url, config.columns, self.convert_numeric)
+        initial_session = init_session(
+            url, config.columns, self.convert_numeric, self.backend
+        )
         # obtenermos la primera visita a la pagina en el anio n
         self.initial_session = initial_session
         # obtnemos la metadata configurada para ese anio

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-import pandas as pd
+import narwhals as nw
 
 
 def sanitize_filename(text: str) -> str:
@@ -38,7 +38,7 @@ def filename_save(name: str, value: str, save_dir: Path) -> Path:
     return filepath
 
 
-def save_dataframe(df: pd.DataFrame, save_dir: Path, name: str, value: str) -> Path:
+def save_dataframe(df: nw.DataFrame, save_dir: Path, name: str, value: str) -> Path:
     """
     Guarda un dataframe en la ubicación especificada
 
@@ -53,5 +53,5 @@ def save_dataframe(df: pd.DataFrame, save_dir: Path, name: str, value: str) -> P
     """
     save_dir.mkdir(parents=True, exist_ok=True)
     filepath = filename_save(name, value, save_dir)
-    df.to_csv(filepath, index=False)
+    df.write_csv(filepath)
     return filepath

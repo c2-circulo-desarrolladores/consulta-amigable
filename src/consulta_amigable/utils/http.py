@@ -3,8 +3,9 @@ utilities para hacer las peticiones al backend
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
-import pandas as pd
+import narwhals as nw
 import requests
 from bs4 import BeautifulSoup
 
@@ -115,7 +116,7 @@ def build_payload(
 @dataclass
 class PostInfo:
     states: STATESHTML
-    df: pd.DataFrame
+    df: nw.DataFrame
     soup: BeautifulSoup
 
 
@@ -147,11 +148,16 @@ def post_info(
 class MefSession:
     session: requests.Session
     states: STATESHTML
-    df: pd.DataFrame
+    df: nw.DataFrame
     soup: BeautifulSoup
 
 
-def init_session(url: str, columns: list, convert: bool) -> MefSession:
+def init_session(
+    url: str,
+    columns: list,
+    convert: bool,
+    backend: Literal["pandas", "polars"] = "polars",
+) -> MefSession:
     """
     Inicializa la sesión HTTP y obtiene el estado inicial
 
@@ -164,7 +170,9 @@ def init_session(url: str, columns: list, convert: bool) -> MefSession:
     session = requests.Session()
     response = session.get(url, timeout=10)
     soup = BeautifulSoup(response.text, "html.parser")
-    df = html_table_to_dataframe(soup, columns=columns, convert=convert)
+    df = html_table_to_dataframe(
+        soup, columns=columns, convert=convert, backend=backend
+    )
 
     initial_states = extract_states(soup)
 

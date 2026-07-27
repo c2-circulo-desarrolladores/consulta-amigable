@@ -1,36 +1,38 @@
 "manejo de tablas"
 
 import re
+from typing import Literal
 
-import pandas as pd
+import narwhals as nw
 from bs4 import BeautifulSoup
 
 
-def filter_content(df: pd.DataFrame, rows=[]) -> pd.DataFrame:
-    if len(rows) == 0:
+def filter_content(df: nw.DataFrame, rows: list | None = None) -> nw.DataFrame:
+    if rows is None or len(rows) == 0:
         return df
-        # Filtrar si se especifica búsqueda
-    if rows and rows is not None:
-        pattern = "|".join(map(re.escape, rows))
-        df = df[df["concepto_region"].str.contains(pattern, case=False, na=False)]
-        df = df.reset_index()
+
+    pattern = "|".join(map(re.escape, rows))
+    df = df.filter(nw.col("concepto_region").str.contains(pattern, literal=False))
     return df
 
 
 def html_table_to_dataframe(
-    soup: BeautifulSoup, columns: list, convert: bool = True
-) -> pd.DataFrame:
+    soup: BeautifulSoup,
+    columns: list,
+    backend: Literal["pandas", "polars"] = "pandas",
+    convert: bool = True,
+) -> nw.DataFrame:
     """
-    Convierte la tabla HTML 'Data' en un DataFrame de pandas
+    Convierte la tabla HTML 'Data' en un DataFrame usando narwhals.
 
     Args:
         soup: BeautifulSoup object con el HTML
         columns: Lista de nombres de columnas
-        buscar: Texto a buscar en la columna 'concepto_region' (opcional)
+        backend: Backend narwhals a usar (ej. "polars", "pandas")
         convert: Si True, convierte números a float
 
     Returns:
-        DataFrame con los datos de la tabla
+        DataFrame (narwhals) con los datos de la tabla
     """
     table = soup.find("table", class_="Data")
 
@@ -50,13 +52,11 @@ def html_table_to_dataframe(
         for i, td in enumerate(tds):
             text = td.get_text(strip=True)
 
-            # En la primera columna, extraer el valor del input (código grp)
             if i == 0:
                 input_tag = td.find("input")
                 if input_tag:
                     text = input_tag.get("value", text)
 
-            # Limpiar y convertir números (formato: 3,400,841.50 → 3400841.50)
             if convert and re.match(r"^[\d,]+\.?\d*$", text):
                 text = text.replace(",", "")
                 try:
@@ -68,12 +68,14 @@ def html_table_to_dataframe(
 
         rows.append(row)
 
-    df = pd.DataFrame(rows, columns=columns)
+    data = {col: [row[i] for row in rows] for i, col in enumerate(columns)}
+
+    df = nw.from_dict(data, backend=backend)
 
     return df
 
 
-def get_grp_from_row(df: pd.DataFrame, row_index: int = 0) -> str:
+def get_grp_from_row(df: nw.DataFrame, row_index: int = 0) -> str:
     """
     Extrae el código grp de una fila específica del DataFrame
 
@@ -92,10 +94,10 @@ def get_grp_from_row(df: pd.DataFrame, row_index: int = 0) -> str:
             f"Índice {row_index} fuera de rango. DataFrame tiene {len(df)} filas"
         )
 
-    return df.iloc[row_index]["codigo_grp"]
+    return df.select("codigo_grp").row(row_index)[0]
 
 
-def find_row_by_text(df: pd.DataFrame, search_text: str) -> int:
+def find_row_by_text(df: nw.DataFrame, search_text: str) -> int:
     """
     Encuentra el índice de la primera fila que contiene el texto buscado
 
@@ -109,9 +111,16 @@ def find_row_by_text(df: pd.DataFrame, search_text: str) -> int:
     Raises:
         ValueError: Si no se encuentra el texto
     """
-    mask = df["concepto_region"].str.contains(search_text, case=False, na=False)
+    mask = (
+        df["concepto_region"]
+        .str.to_lowercase()
+        .str.contains(search_text.lower(), literal=False)
+        .fill_null(False)
+    )
 
-    if not mask.any():
+    matches = [i for i, val in enumerate(mask.to_list()) if val]
+
+    if not matches:
         raise ValueError(f"No se encontró ninguna fila con el texto: '{search_text}'")
 
-    return mask.idxmax()
+    return matches[0]

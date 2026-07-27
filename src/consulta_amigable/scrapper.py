@@ -22,7 +22,7 @@ class MEFScraper:
     def __init__(
         self,
         steps: list,
-        backend: Literal["pandas", "polars"] = "polars",
+        backend: Literal["pandas", "polars"] = "pandas",
         tipo: Literal["gasto", "ingreso"] = "gasto",
         act_proy: Literal["ActProy", "Actividad", "Proyecto"] = "ActProy",
         master_dir_save: str = "./data/mef/",

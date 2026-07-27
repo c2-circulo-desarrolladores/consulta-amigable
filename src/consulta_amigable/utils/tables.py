@@ -12,7 +12,11 @@ def filter_content(df: nw.DataFrame, rows: list | None = None) -> nw.DataFrame:
         return df
 
     pattern = "|".join(map(re.escape, rows))
-    df = df.filter(nw.col("concepto_region").str.contains(pattern, literal=False))
+    df = df.filter(
+        nw.col("concepto_region")
+        .str.to_lowercase()
+        .str.contains(pattern, literal=False)
+    )
     return df
 
 

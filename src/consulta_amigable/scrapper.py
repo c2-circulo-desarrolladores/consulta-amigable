@@ -156,6 +156,13 @@ class MEFScraper:
 
         # print(step)
         df_filtered = filter_content(df, text_search)
+
+        if len(df_filtered) == 0:
+            raise ValueError(
+                f"El paso {step_idx} ({step.click.button}) con filtro {text_search!r} "
+                f"no encontró filas. \nColumnas disponibles: {df.columns}."
+                f"\nValores en '{columns[1]}': {df[columns[1]].to_list()}"
+            )
         results = []
 
         for row in df_filtered.iter_rows(named=True):

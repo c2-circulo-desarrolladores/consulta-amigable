@@ -6,9 +6,10 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "bs4>=0.0.2",
+    "httpx2>=2.13.1",
     "narwhals>=2.24.0",
-    "requests>=2.34.2",
     "rich>=15.0.0",
+    "ubigeos-peru>=0.2.3",
 ]
 
 classifiers = [

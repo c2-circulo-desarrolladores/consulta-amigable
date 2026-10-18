@@ -1,6 +1,11 @@
 # git-cliff ~ configuration file
 # https://git-cliff.org/docs/configuration
-
+#
+# Plantilla agnóstica de plataforma (GitHub, Forgejo, Gitea, GitLab...).
+# El CLI debe reemplazar el placeholder https://github.com/c2-circulo-desarrolladores/consulta-amigable al generar este archivo
+# (ej. https://github.com/owner/repo o https://git.midominio.org/owner/repo),
+# sin barra final. Se obtiene de `git remote get-url origin` normalizado.
+# No se usa [remote.*], así que git-cliff no consulta ninguna API externa.
 
 [changelog]
 # A Tera template to be rendered for each release in the changelog.
@@ -16,7 +21,8 @@ body = """
     {% for commit in commits %}
         - {% if commit.scope %}**({{ commit.scope }})** {% endif %}\
             {% if commit.breaking %}[**breaking**] {% endif %}\
-            {{ commit.message | upper_first }}\
+            {{ commit.message | upper_first }} - \
+            ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/c2-circulo-desarrolladores/consulta-amigable/commit/{{ commit.id }}))\
     {% endfor %}
 {% endfor %}
 
@@ -28,13 +34,9 @@ render_always = true
 # An array of regex based postprocessors to modify the changelog.
 postprocessors = [
     # Wrap anything inside <...> in backticks so markdown renderers don't
-    # swallow it as an unknown HTML tag (e.g. consulta-amigable, c2-circulo-desarrolladores, <PATH>, etc.).
+    # swallow it as an unknown HTML tag (e.g. <REPO>, <OWNER>, <PATH>, etc.).
     { pattern = '<([^>]+)>', replace = "`<${1}>`" },
 ]
-# render body even when there are no releases to process
-# render_always = true
-# output file path
-# output = "test.md"
 
 [git]
 # Parse commits according to the conventional commits specification.
@@ -49,13 +51,9 @@ require_conventional = false
 split_commits = false
 # An array of regex based parsers to modify commit messages prior to further processing.
 commit_preprocessors = [
-    # Replace issue numbers with FULL absolute link templates.
-    # Captures any prefix text before #number (e.g. "closes #35",
-    # "relates to #35", or just "#35") and preserves only the #number part.
-    { pattern = '\(([^#\)]*)#([0-9]+)\)', replace = "([#${2}](https://github.com/c2-circulo-desarrolladores/c2-cli/issues/${2}))" },
-    # Check spelling of the commit message using https://github.com/crate-ci/typos.
-    # If the spelling is incorrect, it will be fixed automatically.
-    #{ pattern = '.*', replace_command = 'typos --write-changes -' },
+    # Replace issue numbers with absolute links. Works the same on GitHub,
+    # Forgejo and Gitea (/issues/N). Keeps only the #number part.
+    { pattern = '\(([^#\)]*)#([0-9]+)\)', replace = "([#${2}](https://github.com/c2-circulo-desarrolladores/consulta-amigable/issues/${2}))" },
 ]
 # Prevent commits that are breaking from being excluded by commit parsers.
 protect_breaking_commits = false

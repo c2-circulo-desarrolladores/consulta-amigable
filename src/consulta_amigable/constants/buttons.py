@@ -1,6 +1,7 @@
 """ID de los botones de la plataforma de consulta amigable"""
 
 NIVEL_GOBIERNO = "ctl00$CPH1$BtnTipoGobierno"
+SECTOR = "ctl00$CPH1$BtnSector"
 GENERICA = "ctl00$CPH1$BtnGenerica"
 SUB_GENERICA = "ctl00$CPH1$BtnSubGenerica"
 DETALLE_SUB_GENERICA = "ctl00$CPH1$BtnSubGenericaDetalle"

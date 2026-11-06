@@ -1,21 +1,27 @@
+from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from numbers import Integral
 from pathlib import Path
 from typing import Literal
 
+import httpx2
 import narwhals as nw
 import requests
+from bs4 import BeautifulSoup
 
 from consulta_amigable.constants.config import Config, get_config
 from consulta_amigable.steps.click import Search
 from consulta_amigable.steps.workflow import Workflow
-from consulta_amigable.utils.html import STATESHTML, has_search_panel
+from consulta_amigable.utils.console import console
+from consulta_amigable.utils.html import extract_states, has_search_panel
 from consulta_amigable.utils.http import (
+    MefSession,
     build_payload,
     build_search_payload,
-    init_session,
     post_info,
 )
 from consulta_amigable.utils.parse_file import filename_save
-from consulta_amigable.utils.tables import filter_content
+from consulta_amigable.utils.tables import filter_content, html_table_to_dataframe
 
 
 class MEFScraper:
@@ -31,7 +37,9 @@ class MEFScraper:
         if tipo not in ("gasto", "ingreso"):
             raise ValueError(f"Tipo '{tipo}' no válido. Use 'gasto' o 'ingreso'")
 
-        wk = Workflow(steps)
+        raw_steps = list(steps)
+        wk = Workflow(raw_steps)
+        self._raw_steps = raw_steps
         self.tipo: Literal["gasto", "ingreso"] = tipo
         self.backend: Literal["pandas", "polars"] = backend
         self.steps = wk.p_steps
@@ -47,43 +55,178 @@ class MEFScraper:
         self.cols: list
         self.save_dir: Path
 
-    def run(self, year: int) -> "MEFScraper":
-        self._setup_year(year=year)
+        # Resultados de la última ejecución
+        self.years: list[int] = []
+        self.runs: dict[int, "MEFScraper"] = {}
+        self.errors: dict[int, Exception] = {}
+        self.result: nw.DataFrame
 
-        initial_config = self.initial_session
-        initial_states = initial_config.states
-        soup = initial_config.soup
-        df = initial_config.df
-        # session = initial_config.session
+    def run(
+        self,
+        year: int | Iterable[int],
+        *,
+        max_workers: int | None = None,
+        raise_on_error: bool = False,
+    ) -> "MEFScraper":
+        """
+        Ejecuta el scraping para un año o para varios.
+
+        Args:
+            year: Año (int) o iterable de años (list, tuple, range, ...).
+            max_workers: Número máximo de hilos al pasar varios años.
+                Por defecto se usa min(3, cantidad de años).
+            raise_on_error: Si es True, lanza un error al final cuando algún año
+                falló. Los resultados parciales quedan disponibles en `runs`,
+                `errors` y `result`.
+
+        Returns:
+            La misma instancia con `result` (DataFrame combinado), `runs`
+            (instancia por año) y `errors` (excepción por año).
+        """
+        max_workers = self._validate_max_workers(max_workers)
+        years = self._normalize_years(year)
+
+        self.years = years
+        self.runs = {}
+        self.errors = {}
+        self.result = None
+
+        if len(years) == 1:
+            self._run_single(years[0])
+            self.runs = {years[0]: self}
+            return self
+
+        return self._run_multi(
+            years,
+            max_workers=max_workers,
+            raise_on_error=raise_on_error,
+        )
+
+    @staticmethod
+    def _normalize_years(year: int | Iterable[int]) -> list[int]:
+        if isinstance(year, bool) or isinstance(year, (str, bytes)):
+            raise TypeError("`year` debe ser un entero o un iterable de enteros")
+
+        if isinstance(year, Integral):
+            return [int(year)]
+
+        try:
+            items = list(year)
+        except TypeError as exc:
+            raise TypeError(
+                "`year` debe ser un entero o un iterable de enteros"
+            ) from exc
+
+        if not items:
+            raise ValueError("Debes indicar al menos un año")
+
+        years: list[int] = []
+        for item in items:
+            if isinstance(item, bool) or not isinstance(item, Integral):
+                raise TypeError(f"El año {item!r} no es un entero")
+            years.append(int(item))
+
+        # Deduplica manteniendo el orden original
+        return list(dict.fromkeys(years))
+
+    @staticmethod
+    def _validate_max_workers(max_workers: int | None) -> int | None:
+        if max_workers is None:
+            return None
+        if isinstance(max_workers, bool) or not isinstance(max_workers, Integral):
+            raise TypeError("`max_workers` debe ser un entero o None")
+        if max_workers < 1:
+            raise ValueError("`max_workers` debe ser mayor o igual a 1")
+        return int(max_workers)
+
+    def _spawn(self) -> "MEFScraper":
+        """Crea una instancia nueva con la misma configuración."""
+        return type(self)(
+            self._raw_steps,
+            backend=self.backend,
+            tipo=self.tipo,
+            act_proy=self.act_proy,
+            master_dir_save=self.master_dir_save,
+            convert_numeric=self.convert_numeric,
+        )
+
+    def _run_single(self, year: int) -> "MEFScraper":
+        self._setup_config_year(year=year)
+
         result = self._process_step(
+            mef=self.initial_session,
             step_idx=0,
-            df=df,
-            state=initial_states,
-            soup=soup,
             metadata={"year": [year]},
         )
         self.result = nw.concat(result)
 
         return self
 
-    def _do_post(self, soup, state: STATESHTML, grp, click_bttn, extras=None):
+    def _run_multi(
+        self,
+        years: list[int],
+        *,
+        max_workers: int | None = None,
+        raise_on_error: bool = False,
+    ) -> "MEFScraper":
+        workers = max_workers or min(3, len(years))
+
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = {
+                pool.submit(self._spawn()._run_single, year): year for year in years
+            }
+            for future in as_completed(futures):
+                year = futures[future]
+                try:
+                    self.runs[year] = future.result()
+                except Exception as exc:
+                    self.errors[year] = exc
+
+        frames = [
+            self.runs[year].result
+            for year in sorted(self.runs)
+            if self.runs[year].result is not None
+        ]
+        self.result = nw.concat(frames) if frames else None
+
+        if self.errors:
+            self._report_errors()
+            if raise_on_error:
+                details = "; ".join(
+                    f"{year}: {exc}" for year, exc in sorted(self.errors.items())
+                )
+                raise RuntimeError(
+                    f"Fallaron {len(self.errors)} año(s) de {len(years)}: {details}"
+                )
+
+        return self
+
+    def _report_errors(self) -> None:
+        failed = ", ".join(str(year) for year in sorted(self.errors))
+        console.print(
+            f"[yellow]Advertencia:[/yellow] fallaron {len(self.errors)} "
+            f"año(s): {failed}. Revisa el atributo `errors` para más detalles."
+        )
+
+    def _do_post(
+        self,
+        mef: MefSession,
+        grp,
+        click_bttn,
+        extras=None,
+    ) -> MefSession:
         payload = build_payload(
-            soup=soup,
+            soup=mef.soup,
             year=self.year,
-            state=state,
+            state=mef.states,
             button_key=click_bttn,
             grp=grp,
             extras=extras or {},
             tipo=self.tipo,
             act_proy=self.act_proy,
         )
-        # print(payload)
 
-        result = post_info(
-            self.initial_session.session, self.config.url, payload, self.config.columns
-        )
-        # print(result.df)
-        return result
+        return post_info(mef.client, self.config.url, payload, self.config.columns)
 
     def _already_saved(self, name_col, value):
         if name_col is None:
@@ -93,41 +236,31 @@ class MEFScraper:
             return True
         return False
 
-    def _execute_search_step(self, soup, state, df, post_step: Search):
-        """ejecuta esto cuando tengo un Step y Search diferente a None"""
-        if not has_search_panel(soup):
-            return soup, state, df
+    def _execute_search_step(self, mef: MefSession, post_step: Search) -> MefSession:
+        """Ejecuta la búsqueda del paso sobre el estado actual, si la UI la ofrece."""
+        if not has_search_panel(mef.soup):
+            return mef
 
         search_payload = build_search_payload(
-            soup,
+            mef.soup,
             year=self.year,
-            state=state,
+            state=mef.states,
             search_query=post_step.query,
             search_type=post_step.method,
             tipo=self.tipo,
             act_proy=self.act_proy,
         )
-        try:
-            result = post_info(
-                self.initial_session.session,
-                self.config.url,
-                search_payload,
-                self.config.columns,
-            )
-            new_soup = result.soup
-            new_states = result.states
-            new_df = result.df
-        except Exception:
-            raise
-
-        return new_soup, new_states, new_df
+        return post_info(
+            mef.client,
+            self.config.url,
+            search_payload,
+            self.config.columns,
+        )
 
     def _process_step(
         self,
-        soup,
+        mef: MefSession,
         step_idx: int,
-        state: STATESHTML,
-        df: nw.DataFrame,
         metadata: dict,
     ) -> list[nw.DataFrame]:
 
@@ -155,13 +288,13 @@ class MEFScraper:
         extras_params = {}
 
         # print(step)
-        df_filtered = filter_content(df, text_search)
+        df_filtered = filter_content(mef.df, text_search)
 
         if len(df_filtered) == 0:
             raise ValueError(
                 f"El paso {step_idx} ({step.click.button}) con filtro {text_search!r} "
-                f"no encontró filas. \nColumnas disponibles: {df.columns}."
-                f"\nValores en '{columns[1]}': {df[columns[1]].to_list()}"
+                f"no encontró filas. \nColumnas disponibles: {mef.df.columns}."
+                f"\nValores en '{columns[1]}': {mef.df[columns[1]].to_list()}"
             )
         results = []
 
@@ -174,27 +307,21 @@ class MEFScraper:
                 current_meta[name_col] = [current_value]
 
             result_post = self._do_post(
-                soup=soup,
-                state=state,
+                mef=mef,
                 grp=grp,
                 click_bttn=click_bttn,
                 extras=extras_params,
             )
-            child_df = result_post.df
-            child_soup = result_post.soup
-            child_states = result_post.states
 
             if post_step is not None:
-                child_soup, child_states, child_df = self._execute_search_step(
-                    child_soup, child_states, child_df, post_step
-                )
+                result_post = self._execute_search_step(result_post, post_step)
 
             if is_final:
                 last_name = step.click.name
                 meta_values = {k: v[0] for k, v in current_meta.items()}
 
                 child_df = (
-                    child_df.with_columns(
+                    result_post.df.with_columns(
                         **{k: nw.lit(v) for k, v in meta_values.items()}
                     )
                     .drop(columns[0])
@@ -204,16 +331,45 @@ class MEFScraper:
                 results.append(child_df)
             else:
                 child = self._process_step(
-                    soup=child_soup,
+                    mef=result_post,
                     step_idx=step_idx + 1,
-                    state=child_states,
-                    df=child_df,
                     metadata=current_meta,
                 )
                 results.extend(child)
         return results
 
-    def _setup_year(
+    def _init_session(
+        self,
+        url: str,
+        columns: list,
+        convert: bool,
+        backend: Literal["pandas", "polars"] = "polars",
+    ) -> MefSession:
+        """
+        Inicializa la sesión HTTP y obtiene el estado inicial
+
+        Args:
+            url: URL del endpoint
+
+        Returns:
+            MefSession con la sesión, los estados y el dataframe iniciales
+        """
+        client = httpx2.Client()
+        response = client.get(url, timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
+        df = html_table_to_dataframe(
+            soup, columns=columns, convert=convert, backend=backend
+        )
+
+        initial_states = extract_states(soup)
+
+        initial_session = MefSession(
+            client=client, states=initial_states, df=df, soup=soup
+        )
+
+        return initial_session
+
+    def _setup_config_year(
         self,
         year: int,
     ):
@@ -230,11 +386,10 @@ class MEFScraper:
         else:
             url = config.url.format(year=year)
 
-        initial_session = init_session(
+        # obtenermos la primera visita a la pagina en el anio n
+        self.initial_session = self._init_session(
             url, config.columns, self.convert_numeric, self.backend
         )
-        # obtenermos la primera visita a la pagina en el anio n
-        self.initial_session = initial_session
         # obtnemos la metadata configurada para ese anio
         self.config = Config(range(1, 2), url, config.columns)
         self.year = year

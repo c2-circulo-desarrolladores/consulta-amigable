@@ -4,8 +4,7 @@ Obtiene todas las municipalidades
 
 import pytest
 
-from consulta_amigable import BTN, ClickBtn, Rows
-from consulta_amigable.scrapper import MEFScraper
+from consulta_amigable import BTN, ClickBtn, MEFScraper, Rows
 
 # def assert_base_df(df: pl.DataFrame, columns: list):
 #     assert list(df.select(pl.col("year")).unique()) == [2024]

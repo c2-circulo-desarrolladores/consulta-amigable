@@ -89,7 +89,6 @@ class MEFScraper:
         self.years = years
         self.runs = {}
         self.errors = {}
-        self.result = None
 
         if len(years) == 1:
             self._run_single(years[0])
@@ -104,30 +103,33 @@ class MEFScraper:
 
     @staticmethod
     def _normalize_years(year: int | Iterable[int]) -> list[int]:
-        if isinstance(year, bool) or isinstance(year, (str, bytes)):
+        if isinstance(year, (bool, str, bytes)):
             raise TypeError("`year` debe ser un entero o un iterable de enteros")
 
         if isinstance(year, Integral):
             return [int(year)]
 
         try:
-            items = list(year)
-        except TypeError as exc:
-            raise TypeError(
-                "`year` debe ser un entero o un iterable de enteros"
-            ) from exc
+            iterator = iter(year)
+        except TypeError:
+            raise TypeError("`year` debe ser un entero o un iterable de enteros")
 
-        if not items:
-            raise ValueError("Debes indicar al menos un año")
-
+        # Deduplica y normaliza en una sola pasada
         years: list[int] = []
-        for item in items:
+        seen: set[int] = set()
+        for item in iterator:
+            # Integral por si a alguien se le ocurre pasar una Serie de Pandas
             if isinstance(item, bool) or not isinstance(item, Integral):
                 raise TypeError(f"El año {item!r} no es un entero")
-            years.append(int(item))
+            value = int(item)
+            if value not in seen:
+                seen.add(value)
+                years.append(value)
 
-        # Deduplica manteniendo el orden original
-        return list(dict.fromkeys(years))
+        if not years:
+            raise ValueError("Debes indicar al menos un año")
+
+        return years
 
     @staticmethod
     def _validate_max_workers(max_workers: int | None) -> int | None:

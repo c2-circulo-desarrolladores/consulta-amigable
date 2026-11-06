@@ -3,10 +3,9 @@ utilities para hacer las peticiones al backend
 """
 
 from dataclasses import dataclass
-from typing import Literal
 
+import httpx2
 import narwhals as nw
-import requests
 from bs4 import BeautifulSoup
 
 from consulta_amigable.utils.html import STATESHTML, extract_states, get_button_label
@@ -16,7 +15,7 @@ from consulta_amigable.utils.tables import html_table_to_dataframe
 def build_search_payload(
     soup: BeautifulSoup,
     year: int,
-    state: dict,
+    state: STATESHTML,
     search_query: str,
     search_type: str = "code",
     tipo: str = "gasto",
@@ -114,17 +113,20 @@ def build_payload(
 
 
 @dataclass
-class PostInfo:
+class MefSession:
+    """Estado de una navegación: cliente HTTP + último HTML parseado."""
+
+    client: httpx2.Client
     states: STATESHTML
     df: nw.DataFrame
     soup: BeautifulSoup
 
 
 def post_info(
-    session: requests.Session, url: str, payload: dict, columns: list
-) -> PostInfo:
+    session: httpx2.Client, url: str, payload: dict, columns: list
+) -> MefSession:
     """
-    Hace POST y retorna estados y dataframe
+    Hace POST y retorna el nuevo estado de la navegación
 
     Args:
         session: Sesión de requests
@@ -133,7 +135,7 @@ def post_info(
         columns: Columnas esperadas en la tabla
 
     Returns:
-        Tupla con (estados, dataframe)
+        MefSession con la sesión, estados, dataframe y soup actualizados
     """
     response = session.post(url, data=payload, timeout=30)
     html = response.text
@@ -141,43 +143,6 @@ def post_info(
     soup = BeautifulSoup(html, "html.parser")
     states = extract_states(soup)
     df = html_table_to_dataframe(soup, columns=columns)
-    return PostInfo(states=states, df=df, soup=soup)
+    return MefSession(client=session, states=states, df=df, soup=soup)
 
 
-@dataclass
-class MefSession:
-    session: requests.Session
-    states: STATESHTML
-    df: nw.DataFrame
-    soup: BeautifulSoup
-
-
-def init_session(
-    url: str,
-    columns: list,
-    convert: bool,
-    backend: Literal["pandas", "polars"] = "polars",
-) -> MefSession:
-    """
-    Inicializa la sesión HTTP y obtiene el estado inicial
-
-    Args:
-        url: URL del endpoint
-
-    Returns:
-        Tupla con (session, estados_iniciales, dataframe_inicial)
-    """
-    session = requests.Session()
-    response = session.get(url, timeout=10)
-    soup = BeautifulSoup(response.text, "html.parser")
-    df = html_table_to_dataframe(
-        soup, columns=columns, convert=convert, backend=backend
-    )
-
-    initial_states = extract_states(soup)
-
-    initial_session = MefSession(
-        session=session, states=initial_states, df=df, soup=soup
-    )
-
-    return initial_session

@@ -19,7 +19,7 @@ def filter_content(df: nw.DataFrame, rows: list | None = None) -> nw.DataFrame:
     )
     return df
 
-
+# TODO: Aquí utilizar ubigeos_peru
 def html_table_to_dataframe(
     soup: BeautifulSoup,
     columns: list,

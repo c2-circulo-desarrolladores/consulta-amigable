@@ -1,3 +1,13 @@
+## [0.2.1] - 2026-11-07
+
+### 💼 Other
+
+- Version 0.2.0 -> 0.2.1 - ([2390e79](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/2390e79d970820b698e88f17b4fd15746df0cf10))
+
+### ⚙️ Miscellaneous Tasks
+
+- Simplificar flujo de release.yml - ([3f85456](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/3f854564d98f2a87e23a953b6559596a11cf12be))
+
 ## [0.2.0] - 2026-11-07
 
 ### 🚀 Features

@@ -37,11 +37,8 @@ dev = ["ruff"]
 test = ["pandas>=3.0.5", "polars>=1.43.0", "pytest"]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/consulta_amigable"]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
 
 [tool.commitizen]
 name = "cz_conventional_commits"

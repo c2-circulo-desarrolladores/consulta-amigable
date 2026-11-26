@@ -1,5 +1,5 @@
 """
-Obtiene todas las municipalidades
+Ruta para obtener todas las municipalidades
 """
 
 import pytest

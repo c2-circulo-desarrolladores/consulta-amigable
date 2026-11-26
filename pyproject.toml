@@ -8,6 +8,7 @@ dependencies = [
     "bs4>=0.0.2",
     "httpx2>=2.16.0",
     "narwhals>=2.24.0",
+    "packaging>=24.0",
     "rich>=15.0.0",
 ]
 
@@ -27,12 +28,19 @@ classifiers = [
     "Natural Language :: Spanish",
 ]
 
+[project.optional-dependencies]
+pandas = ["pandas>=3.0.5"]
+polars = ["polars>=1.43.0"]
+
 [project.urls]
 Repository = "https://github.com/c2-circulo-desarrolladores/consulta-amigable"
 Changelog = "https://github.com/c2-circulo-desarrolladores/consulta-amigable/blob/main/CHANGELOG.md"
 
 [dependency-groups]
-dev = ["ruff"]
+dev = [
+    "pytest>=9.2.0",
+    "ruff",
+]
 
 test = ["pandas>=3.0.5", "polars>=1.43.0", "pytest"]
 
@@ -42,9 +50,15 @@ build-backend = "uv_build"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-tag_format = "v$version"
-version_scheme = "pep440"
 version_provider = "uv"
+version_scheme = "pep440"
+tag_format = "v$version"
+annotated_tag = true
+bump_message = "bump: version $current_version → $new_version"
+major_version_zero = true
+post_bump_hooks = [
+    "git push origin HEAD --follow-tags",
+]
 
 [tool.ruff.lint]
 select = ["F", "I", "E"]

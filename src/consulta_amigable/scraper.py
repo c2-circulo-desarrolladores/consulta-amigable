@@ -6,13 +6,13 @@ from typing import Literal
 
 import httpx2
 import narwhals as nw
-import requests
 from bs4 import BeautifulSoup
 
 from consulta_amigable.constants.config import Config, get_config
 from consulta_amigable.steps.click import Search
 from consulta_amigable.steps.workflow import Workflow
 from consulta_amigable.utils.console import console
+from consulta_amigable.utils.dependencies import assert_optional_import
 from consulta_amigable.utils.html import extract_states, has_search_panel
 from consulta_amigable.utils.http import (
     MefSession,
@@ -37,6 +37,12 @@ class MEFScraper:
         if tipo not in ("gasto", "ingreso"):
             raise ValueError(f"Tipo '{tipo}' no válido. Use 'gasto' o 'ingreso'")
 
+        if backend not in ("pandas", "polars"):
+            raise ValueError(
+                f"Backend '{backend}' no válido. Use 'pandas' o 'polars'"
+            )
+        assert_optional_import(backend, extra=backend)
+
         raw_steps = list(steps)
         wk = Workflow(raw_steps)
         self._raw_steps = raw_steps
@@ -50,7 +56,7 @@ class MEFScraper:
         # Configuración que se establecerá al ejecutar run()
         self.year: int
         self.config: Config
-        self.session: requests.Session
+        self.session: httpx2.Client
         self.url: str
         self.cols: list
         self.save_dir: Path

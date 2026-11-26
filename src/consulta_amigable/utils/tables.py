@@ -6,6 +6,8 @@ from typing import Literal
 import narwhals as nw
 from bs4 import BeautifulSoup
 
+from consulta_amigable.utils.dependencies import assert_optional_import
+
 
 def filter_content(df: nw.DataFrame, rows: list | None = None) -> nw.DataFrame:
     if rows is None or len(rows) == 0:
@@ -38,6 +40,10 @@ def html_table_to_dataframe(
     Returns:
         DataFrame (narwhals) con los datos de la tabla
     """
+    if backend not in ("pandas", "polars"):
+        raise ValueError(f"Backend '{backend}' no válido. Use 'pandas' o 'polars'")
+    assert_optional_import(backend, extra=backend)
+
     table = soup.find("table", class_="Data")
 
     if table is None:

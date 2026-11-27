@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from numbers import Integral
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Generic, Literal, TypeVar, overload
 
 import httpx2
 import narwhals as nw
@@ -23,8 +25,38 @@ from consulta_amigable.utils.http import (
 from consulta_amigable.utils.parse_file import filename_save
 from consulta_amigable.utils.tables import filter_content, html_table_to_dataframe
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
-class MEFScraper:
+
+DF = TypeVar("DF", "pl.DataFrame", "pd.DataFrame")
+
+
+class MEFScraper(Generic[DF]):
+    @overload
+    def __init__(
+        self: "MEFScraper[pd.DataFrame]",
+        steps: list,
+        backend: Literal["pandas"] = "pandas",
+        tipo: Literal["gasto", "ingreso"] = "gasto",
+        act_proy: Literal["ActProy", "Actividad", "Proyecto"] = "ActProy",
+        master_dir_save: str = "./data/mef/",
+        convert_numeric: bool = True,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self: "MEFScraper[pl.DataFrame]",
+        steps: list,
+        backend: Literal["polars"] = "polars",
+        tipo: Literal["gasto", "ingreso"] = "gasto",
+        act_proy: Literal["ActProy", "Actividad", "Proyecto"] = "ActProy",
+        master_dir_save: str = "./data/mef/",
+        convert_numeric: bool = True,
+    ) -> None: ...
+
+    @overload
     def __init__(
         self,
         steps: list,
@@ -33,14 +65,12 @@ class MEFScraper:
         act_proy: Literal["ActProy", "Actividad", "Proyecto"] = "ActProy",
         master_dir_save: str = "./data/mef/",
         convert_numeric: bool = True,
-    ):
+    ) -> None:
         if tipo not in ("gasto", "ingreso"):
             raise ValueError(f"Tipo '{tipo}' no válido. Use 'gasto' o 'ingreso'")
 
         if backend not in ("pandas", "polars"):
-            raise ValueError(
-                f"Backend '{backend}' no válido. Use 'pandas' o 'polars'"
-            )
+            raise ValueError(f"Backend '{backend}' no válido. Use 'pandas' o 'polars'")
         assert_optional_import(backend, extra=backend)
 
         raw_steps = list(steps)
@@ -65,7 +95,11 @@ class MEFScraper:
         self.years: list[int] = []
         self.runs: dict[int, "MEFScraper"] = {}
         self.errors: dict[int, Exception] = {}
-        self.result: nw.DataFrame
+        self._df_narwhals: nw.DataFrame
+
+    @property
+    def df(self) -> DF:
+        return self._df_narwhals.to_native()
 
     def run(
         self,
@@ -73,7 +107,7 @@ class MEFScraper:
         *,
         max_workers: int | None = None,
         raise_on_error: bool = False,
-    ) -> "MEFScraper":
+    ) -> "MEFScraper[DF]":
         """
         Ejecuta el scraping para un año o para varios.
 
@@ -166,7 +200,7 @@ class MEFScraper:
             step_idx=0,
             metadata={"year": [year]},
         )
-        self.result = nw.concat(result)
+        self._df_narwhals = nw.concat(result)
 
         return self
 
@@ -191,11 +225,11 @@ class MEFScraper:
                     self.errors[year] = exc
 
         frames = [
-            self.runs[year].result
+            self.runs[year]._df_narwhals
             for year in sorted(self.runs)
-            if self.runs[year].result is not None
+            if self.runs[year]._df_narwhals is not None
         ]
-        self.result = nw.concat(frames) if frames else None
+        self._df_narwhals = nw.concat(frames)
 
         if self.errors:
             self._report_errors()

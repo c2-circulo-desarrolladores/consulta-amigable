@@ -35,7 +35,7 @@ def test_boton_departamento_meta_funciona():
         ClickBtn(BTN.DEPARTAMENTO_META),
     ]
 
-    df = MEFScraper(steps).run(2023).result
+    df = MEFScraper(steps).run(2023)._df_narwhals
 
     assert df is not None
     assert df.shape[0] > 0

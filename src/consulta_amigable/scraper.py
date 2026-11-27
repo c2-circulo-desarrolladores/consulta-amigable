@@ -56,7 +56,6 @@ class MEFScraper(Generic[DF]):
         convert_numeric: bool = True,
     ) -> None: ...
 
-    @overload
     def __init__(
         self,
         steps: list,
@@ -181,16 +180,21 @@ class MEFScraper(Generic[DF]):
             raise ValueError("`max_workers` debe ser mayor o igual a 1")
         return int(max_workers)
 
-    def _spawn(self) -> "MEFScraper":
-        """Crea una instancia nueva con la misma configuración."""
-        return type(self)(
-            self._raw_steps,
-            backend=self.backend,
+    def _spawn(self) -> "MEFScraper[DF]":
+        new = object.__new__(type(self))
+        new.__dict__.update(
+            _raw_steps=self._raw_steps,
             tipo=self.tipo,
-            act_proy=self.act_proy,
+            backend=self.backend,
+            steps=self.steps,
             master_dir_save=self.master_dir_save,
+            act_proy=self.act_proy,
             convert_numeric=self.convert_numeric,
+            years=[],
+            runs={},
+            errors={},
         )
+        return new
 
     def _run_single(self, year: int) -> "MEFScraper":
         self._setup_config_year(year=year)

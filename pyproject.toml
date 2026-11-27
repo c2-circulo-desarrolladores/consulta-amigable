@@ -64,5 +64,8 @@ post_bump_hooks = [
 select = ["F", "I", "E"]
 ignore = ["E501"]
 
+[tool.ruff]
+extend-exclude = ["README.md"]
+
 [tool.pytest.ini_options]
 markers = ["integration: tests que hacen scraping real"]

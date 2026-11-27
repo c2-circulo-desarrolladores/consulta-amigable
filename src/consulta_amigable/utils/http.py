@@ -144,5 +144,3 @@ def post_info(
     states = extract_states(soup)
     df = html_table_to_dataframe(soup, columns=columns)
     return MefSession(client=session, states=states, df=df, soup=soup)
-
-

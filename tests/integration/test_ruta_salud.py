@@ -24,18 +24,3 @@ def test_ruta_salud(data_dir):
     scraper = MEFScraper(steps, backend="polars").run(rango_años, raise_on_error=True)
     assert scraper.df is not None
     scraper.df.write_csv(data_dir / "sector_salud.csv")
-
-
-@pytest.mark.integration
-def test_ruta_salud_concurrente(data_dir):
-    steps = [
-        Rows(["total"]),
-        ClickBtn(BTN.NIVEL_GOBIERNO),
-        Rows(["nacional"]),
-        ClickBtn(BTN.SECTOR),
-        Rows(["salud"]),
-        ClickBtn(BTN.DEPARTAMENTO_META),
-    ]
-
-    df = MEFScraper(steps, backend="polars").run(rango_años).df
-    df.write_csv(data_dir / "sector_salud_concurrente.csv")

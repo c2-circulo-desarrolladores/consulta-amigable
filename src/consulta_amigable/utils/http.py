@@ -3,6 +3,7 @@ utilities para hacer las peticiones al backend
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
 import httpx2
 import narwhals as nw
@@ -123,7 +124,11 @@ class MefSession:
 
 
 def post_info(
-    session: httpx2.Client, url: str, payload: dict, columns: list
+    session: httpx2.Client,
+    url: str,
+    payload: dict,
+    columns: list,
+    backend: Literal["polars", "pandas"],
 ) -> MefSession:
     """
     Hace POST y retorna el nuevo estado de la navegación
@@ -142,5 +147,5 @@ def post_info(
 
     soup = BeautifulSoup(html, "html.parser")
     states = extract_states(soup)
-    df = html_table_to_dataframe(soup, columns=columns)
+    df = html_table_to_dataframe(soup, columns=columns, backend=backend)
     return MefSession(client=session, states=states, df=df, soup=soup)

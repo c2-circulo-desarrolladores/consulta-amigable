@@ -8,6 +8,29 @@ from bs4 import BeautifulSoup
 
 from consulta_amigable.utils.dependencies import assert_optional_import
 
+_NUMBER_RE = re.compile(r"^[+-]?\d[\d,]*(?:\.\d+)?$")
+
+
+def _parse_number(text: str) -> float | None:
+    """Convierte un texto numérico a float; devuelve None si no es un número.
+
+    Acepta separadores de miles, signo y paréntesis contables:
+    ``"1,234.50"``, ``"-83,075,472"``, ``"(1,000.25)"``.
+    """
+    value = text.strip().replace("\u00a0", "").replace(" ", "")
+    if not value:
+        return None
+
+    negative = value.startswith("(") and value.endswith(")")
+    if negative:
+        value = value[1:-1]
+
+    if not _NUMBER_RE.match(value):
+        return None
+
+    number = float(value.replace(",", ""))
+    return -number if negative else number
+
 
 def filter_content(df: nw.DataFrame, rows: list | None = None) -> nw.DataFrame:
     if rows is None or len(rows) == 0:
@@ -26,7 +49,7 @@ def filter_content(df: nw.DataFrame, rows: list | None = None) -> nw.DataFrame:
 def html_table_to_dataframe(
     soup: BeautifulSoup,
     columns: list,
-    backend: Literal["pandas", "polars"] = "pandas",
+    backend: Literal["pandas", "polars"],
     convert: bool = True,
 ) -> nw.DataFrame:
     """
@@ -68,18 +91,24 @@ def html_table_to_dataframe(
                 if input_tag:
                     text = input_tag.get("value", text)
 
-            if convert and re.match(r"^[\d,]+\.?\d*$", text):
-                text = text.replace(",", "")
-                try:
-                    text = float(text)
-                except ValueError:
-                    pass
-
             row.append(text)
 
         rows.append(row)
 
-    data = {col: [row[i] for row in rows] for i, col in enumerate(columns)}
+    data: dict[str, list] = {}
+
+    for i, col in enumerate(columns):
+        values = [row[i] for row in rows]
+
+        if convert:
+            parsed = [_parse_number(v) if isinstance(v, str) else v for v in values]
+            # Solo castear la columna si realmente contiene números. Así las
+            # celdas vacías quedan como null en vez de mezclar str y float,
+            # que en polars rompe la inferencia de tipos.
+            if any(isinstance(v, float) for v in parsed):
+                values = parsed
+
+        data[col] = values
 
     df = nw.from_dict(data, backend=backend)
 

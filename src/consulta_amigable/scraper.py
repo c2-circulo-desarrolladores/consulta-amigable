@@ -405,7 +405,7 @@ class MEFScraper(Generic[DF]):
         if step_idx >= len(steps):
             return []
 
-        # Entrar a este paso significa que el anterior terminó. 
+        # Entrar a este paso significa que el anterior terminó.
         if step_idx > 0:
             self._complete_step(step_idx - 1)
 

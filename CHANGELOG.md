@@ -1,3 +1,42 @@
+## [0.3.0] - 2026-11-28
+
+### 🚀 Features
+
+- Detecta cuando un backend se usa pero no está instalado - ([0ee945c](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/0ee945c1d3f75175685e623f35ec5e23086ba50b))
+- **(buttons)** Agrega botones de pliego y ejecutora - ([19dff1d](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/19dff1dc261dc6eb823a6d8ab4cc569497c7280e))
+
+### 🐛 Bug Fixes
+
+- Quita pandas como backend por defecto - ([22ab454](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/22ab45408dfe743d9b21a02635b03b8326a5d5c5))
+
+### 🚜 Refactor
+
+- Result -> df; añade type hints para df - ([a40f15d](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/a40f15da76ff2431ee3ce1dd3e9a2d2536c5b5b0))
+
+### 📚 Documentation
+
+- Actualiza instalación y ejemplo rápido - ([3b751b9](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/3b751b983292b07e471e42b43fb206a2a49b73ab))
+
+### 🎨 Styling
+
+- Runs ruff - ([a94e998](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/a94e99889dad594a9d13457a291e646c292d289d))
+- Runs ruff - ([3a3c5de](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/3a3c5ded6e27ff83bb52d242661b0ed743c72b9c))
+- Añade barras de progreso por año con rich - ([e47b4e0](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/e47b4e0cf4e4851084a2d07648eafc5df08e2479))
+- Runs ruff - ([56b290c](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/56b290caad49ecfde5202757fcc1fe616a478218))
+
+### 🧪 Testing
+
+- Mejora tests de integración (salud y municipalidades) - ([e497b2d](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/e497b2d5f1914046432558a7a6cecc8231e03add))
+- Añade ruta_ejecutoras - ([05bf48e](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/05bf48e6b43cab7b84a4a85fa2b9d605b076dca7))
+- Añade test_quickstart - ([a369bb3](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/a369bb3871ca0c0117384e08dd0515cb9072f01b))
+
+### ⚙️ Miscellaneous Tasks
+
+- Agrega pandas y polars como grupos opcionales de dependencias - ([b27fcb0](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/b27fcb01ae7fc0209ca43e30414bad4c3c39346b))
+- Mejora de tipos y limpia código muerto - ([69fdcde](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/69fdcdeadaae0f8ef8fbd772ed810fff5773e56e))
+- Drops support for python 3.10 - ([1e40c30](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/1e40c30e60e0aa8744c7ad595354c1f5dd3d4e2e))
+- Tests de integración solo corren para python 3.11 y 3.14 - ([482abb0](https://github.com/c2-circulo-desarrolladores/consulta-amigable.git/commit/482abb08897976a248beac575db00eef706d3843))
+
 ## [0.2.1] - 2026-11-07
 
 ### 💼 Other

@@ -1,5 +1,5 @@
 """
-Obtiene todas las municipalidades
+Ruta para obtener todas las municipalidades
 """
 
 import pytest
@@ -26,5 +26,5 @@ def test_ruta_municipalidades(data_dir):
         ClickBtn(BTN.MUNICIPALIDAD),
     ]
 
-    df = MEFScraper(steps, backend="polars").run(2025).result
+    df = MEFScraper(steps, backend="polars").run(2025).df
     df.write_csv(data_dir / "municipalidades.csv")

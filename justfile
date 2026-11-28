@@ -5,10 +5,10 @@ set shell := ["powershell.exe", "-Command"] # Windows
 test:
     uv run --group test pytest -vs
 
-test-scraper:
-    uv run --group test pytest tests/test_mef_scraper.py
+test-functional:
+    uv run --group test pytest tests/functional
 
-test-utils:
-    uv run --group test pytest tests/test_utils.py
+test-integration:
+    uv run --group test pytest tests/integration
     
     

@@ -10,10 +10,10 @@ jobs:
     strategy:
       matrix:
         python-version:
-          - "3.10"
           - "3.11"
           - "3.12"
           - "3.13"
+          - "3.14"
 
     steps:
       - uses: actions/checkout@v5
@@ -24,6 +24,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - run: uv sync --group test
+      - name: Unitarias y funcionales
+        run: uv run --group test pytest -m "not integration"
 
-      - run: uv run pytest
+      - name: Integración
+        if: ${{ github.event_name == 'push' && (matrix.python-version == '3.11' || matrix.python-version == '3.14') }}
+        run: uv run --group test pytest -m integration

@@ -1,18 +1,20 @@
+from __future__ import annotations
+
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from numbers import Integral
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Generic, Literal, TypeVar, overload
 
 import httpx2
 import narwhals as nw
-import requests
 from bs4 import BeautifulSoup
 
 from consulta_amigable.constants.config import Config, get_config
 from consulta_amigable.steps.click import Search
 from consulta_amigable.steps.workflow import Workflow
 from consulta_amigable.utils.console import console
+from consulta_amigable.utils.dependencies import assert_optional_import
 from consulta_amigable.utils.html import extract_states, has_search_panel
 from consulta_amigable.utils.http import (
     MefSession,
@@ -23,8 +25,46 @@ from consulta_amigable.utils.http import (
 from consulta_amigable.utils.parse_file import filename_save
 from consulta_amigable.utils.tables import filter_content, html_table_to_dataframe
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
-class MEFScraper:
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    TaskID,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
+
+DF = TypeVar("DF", "pl.DataFrame", "pd.DataFrame")
+
+
+class MEFScraper(Generic[DF]):
+    @overload
+    def __init__(
+        self: "MEFScraper[pd.DataFrame]",
+        steps: list,
+        backend: Literal["pandas"] = "pandas",
+        tipo: Literal["gasto", "ingreso"] = "gasto",
+        act_proy: Literal["ActProy", "Actividad", "Proyecto"] = "ActProy",
+        master_dir_save: str = "./data/mef/",
+        convert_numeric: bool = True,
+    ) -> None: ...
+
+    @overload
+    def __init__(
+        self: "MEFScraper[pl.DataFrame]",
+        steps: list,
+        backend: Literal["polars"] = "polars",
+        tipo: Literal["gasto", "ingreso"] = "gasto",
+        act_proy: Literal["ActProy", "Actividad", "Proyecto"] = "ActProy",
+        master_dir_save: str = "./data/mef/",
+        convert_numeric: bool = True,
+    ) -> None: ...
+
     def __init__(
         self,
         steps: list,
@@ -33,9 +73,13 @@ class MEFScraper:
         act_proy: Literal["ActProy", "Actividad", "Proyecto"] = "ActProy",
         master_dir_save: str = "./data/mef/",
         convert_numeric: bool = True,
-    ):
+    ) -> None:
         if tipo not in ("gasto", "ingreso"):
             raise ValueError(f"Tipo '{tipo}' no válido. Use 'gasto' o 'ingreso'")
+
+        if backend not in ("pandas", "polars"):
+            raise ValueError(f"Backend '{backend}' no válido. Use 'pandas' o 'polars'")
+        assert_optional_import(backend, extra=backend)
 
         raw_steps = list(steps)
         wk = Workflow(raw_steps)
@@ -50,7 +94,7 @@ class MEFScraper:
         # Configuración que se establecerá al ejecutar run()
         self.year: int
         self.config: Config
-        self.session: requests.Session
+        self.session: httpx2.Client
         self.url: str
         self.cols: list
         self.save_dir: Path
@@ -59,15 +103,25 @@ class MEFScraper:
         self.years: list[int] = []
         self.runs: dict[int, "MEFScraper"] = {}
         self.errors: dict[int, Exception] = {}
-        self.result: nw.DataFrame
+        self._df_narwhals: nw.DataFrame
+
+        # Progreso: una tarea por año, con un avance como máximo por paso.
+        self.progress: Progress
+        self.task_id: TaskID
+        self._completed_steps: set[int] = set()
+        self._overflow_reported = False
+
+    @property
+    def df(self) -> DF:
+        return self._df_narwhals.to_native()
 
     def run(
         self,
         year: int | Iterable[int],
         *,
-        max_workers: int | None = None,
+        max_workers: int = 3,
         raise_on_error: bool = False,
-    ) -> "MEFScraper":
+    ) -> "MEFScraper[DF]":
         """
         Ejecuta el scraping para un año o para varios.
 
@@ -90,15 +144,37 @@ class MEFScraper:
         self.runs = {}
         self.errors = {}
 
-        if len(years) == 1:
-            self._run_single(years[0])
-            self.runs = {years[0]: self}
-            return self
+        # Un único Progress para toda la corrida: una tarea (barra) por año.
+        with self._new_progress() as progress:
+            tasks = {
+                year: progress.add_task(f"Año {year} · pasos", total=len(self.steps))
+                for year in years
+            }
 
-        return self._run_multi(
-            years,
-            max_workers=max_workers,
-            raise_on_error=raise_on_error,
+            if len(years) == 1:
+                self.progress = progress
+                self.task_id = tasks[years[0]]
+                self._run_single(years[0])
+                self.runs = {years[0]: self}
+                return self
+
+            return self._run_multi(
+                years,
+                progress=progress,
+                tasks=tasks,
+                max_workers=max_workers,
+                raise_on_error=raise_on_error,
+            )
+
+    @staticmethod
+    def _new_progress() -> Progress:
+        return Progress(
+            TextColumn("{task.description}"),
+            MofNCompleteColumn(),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            console=console,
         )
 
     @staticmethod
@@ -132,42 +208,91 @@ class MEFScraper:
         return years
 
     @staticmethod
-    def _validate_max_workers(max_workers: int | None) -> int | None:
-        if max_workers is None:
-            return None
+    def _validate_max_workers(max_workers: int) -> int:
         if isinstance(max_workers, bool) or not isinstance(max_workers, Integral):
-            raise TypeError("`max_workers` debe ser un entero o None")
+            raise TypeError("`max_workers` debe ser un entero")
         if max_workers < 1:
             raise ValueError("`max_workers` debe ser mayor o igual a 1")
         return int(max_workers)
 
-    def _spawn(self) -> "MEFScraper":
-        """Crea una instancia nueva con la misma configuración."""
-        return type(self)(
-            self._raw_steps,
-            backend=self.backend,
+    def _spawn(
+        self, progress: Progress | None = None, task_id: TaskID | None = None
+    ) -> "MEFScraper[DF]":
+        new = object.__new__(type(self))
+        new.__dict__.update(
+            _raw_steps=self._raw_steps,
             tipo=self.tipo,
-            act_proy=self.act_proy,
+            backend=self.backend,
+            steps=self.steps,
             master_dir_save=self.master_dir_save,
+            act_proy=self.act_proy,
             convert_numeric=self.convert_numeric,
+            years=[],
+            runs={},
+            errors={},
+            progress=progress,
+            task_id=task_id,
+            _completed_steps=set(),
+            _overflow_reported=False,
         )
+        return new
 
     def _run_single(self, year: int) -> "MEFScraper":
-        self._setup_config_year(year=year)
+        self._completed_steps = set()
+        self._overflow_reported = False
+        progress = self.progress
+        task_id = self.task_id
 
-        result = self._process_step(
-            mef=self.initial_session,
-            step_idx=0,
-            metadata={"year": [year]},
-        )
-        self.result = nw.concat(result)
+        try:
+            self._setup_config_year(year=year)
+
+            result = self._process_step(
+                mef=self.initial_session,
+                step_idx=0,
+                metadata={"year": [year]},
+            )
+            self._df_narwhals = nw.concat(result)
+            # El último paso termina recién cuando se juntaron todos los datos.
+            self._complete_step(len(self.steps) - 1)
+        except Exception as exc:
+            progress.update(
+                task_id,
+                description=f"[red]Año {year} · pasos ({type(exc).__name__})[/red]",
+            )
+            raise
 
         return self
+
+    def _complete_step(self, step_idx: int) -> None:
+        """Cuenta un paso una sola vez, aunque la recursión lo repita por filas."""
+        if step_idx in self._completed_steps:
+            return
+        self._completed_steps.add(step_idx)
+
+        progress = self.progress
+        task_id = self.task_id
+        if progress is None or task_id is None or task_id >= len(progress.tasks):
+            return
+
+        task = progress.tasks[task_id]
+        if task.total is not None and task.completed + 1 > task.total:
+            if not self._overflow_reported:
+                self._overflow_reported = True
+                console.print(
+                    "[yellow]Advertencia:[/yellow] el progreso superó el total "
+                    f"de {task.total} paso(s) en el año {self.year}; "
+                    "se descartó el avance."
+                )
+            return
+
+        progress.update(task_id, advance=1)
 
     def _run_multi(
         self,
         years: list[int],
         *,
+        progress: Progress,
+        tasks: dict[int, TaskID],
         max_workers: int | None = None,
         raise_on_error: bool = False,
     ) -> "MEFScraper":
@@ -175,7 +300,11 @@ class MEFScraper:
 
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {
-                pool.submit(self._spawn()._run_single, year): year for year in years
+                pool.submit(
+                    self._spawn(progress=progress, task_id=tasks[year])._run_single,
+                    year,
+                ): year
+                for year in years
             }
             for future in as_completed(futures):
                 year = futures[future]
@@ -185,11 +314,11 @@ class MEFScraper:
                     self.errors[year] = exc
 
         frames = [
-            self.runs[year].result
+            self.runs[year]._df_narwhals
             for year in sorted(self.runs)
-            if self.runs[year].result is not None
+            if self.runs[year]._df_narwhals is not None
         ]
-        self.result = nw.concat(frames) if frames else None
+        self._df_narwhals = nw.concat(frames)
 
         if self.errors:
             self._report_errors()
@@ -228,7 +357,9 @@ class MEFScraper:
             act_proy=self.act_proy,
         )
 
-        return post_info(mef.client, self.config.url, payload, self.config.columns)
+        return post_info(
+            mef.client, self.config.url, payload, self.config.columns, self.backend
+        )
 
     def _already_saved(self, name_col, value):
         if name_col is None:
@@ -257,6 +388,7 @@ class MEFScraper:
             self.config.url,
             search_payload,
             self.config.columns,
+            self.backend,
         )
 
     def _process_step(
@@ -272,6 +404,10 @@ class MEFScraper:
 
         if step_idx >= len(steps):
             return []
+
+        # Entrar a este paso significa que el anterior terminó.
+        if step_idx > 0:
+            self._complete_step(step_idx - 1)
 
         step = steps[step_idx]
 
@@ -289,7 +425,6 @@ class MEFScraper:
 
         extras_params = {}
 
-        # print(step)
         df_filtered = filter_content(mef.df, text_search)
 
         if len(df_filtered) == 0:
@@ -338,6 +473,7 @@ class MEFScraper:
                     metadata=current_meta,
                 )
                 results.extend(child)
+
         return results
 
     def _init_session(
@@ -388,11 +524,11 @@ class MEFScraper:
         else:
             url = config.url.format(year=year)
 
-        # obtenermos la primera visita a la pagina en el anio n
+        # obtenermos la primera visita a la pagina en el año n
         self.initial_session = self._init_session(
             url, config.columns, self.convert_numeric, self.backend
         )
-        # obtnemos la metadata configurada para ese anio
+        # obtnemos la metadata configurada para ese anño
         self.config = Config(range(1, 2), url, config.columns)
         self.year = year
         # Directorio específico del año

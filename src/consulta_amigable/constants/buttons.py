@@ -2,6 +2,8 @@
 
 NIVEL_GOBIERNO = "ctl00$CPH1$BtnTipoGobierno"
 SECTOR = "ctl00$CPH1$BtnSector"
+PLIEGO = "ctl00$CPH1$BtnPliego"
+EJECUTORA = "ctl00$CPH1$BtnEjecutora"
 GENERICA = "ctl00$CPH1$BtnGenerica"
 SUB_GENERICA = "ctl00$CPH1$BtnSubGenerica"
 DETALLE_SUB_GENERICA = "ctl00$CPH1$BtnSubGenericaDetalle"

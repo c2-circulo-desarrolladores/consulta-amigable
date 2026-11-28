@@ -4,7 +4,7 @@
 
 *API de Python no oficial para automatizar la extracción de datos del portal **Consulta Amigable** del Ministerio de Economía y Finanzas (MEF) del Perú.*
 
-[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Package Manager](https://img.shields.io/badge/uv-managed-purple.svg)](https://github.com/astral-sh/uv)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -36,25 +36,32 @@ El paquete **`consulta_amigable`** ofrece una API de Python no oficial para auto
 ## Instalación
 
 ```bash
-pip install consulta-amigable
+pip install consulta-amigable[pandas]
+
+# si utilizas polars:
+pip install consulta-amigable[polars]
 ```
 
 
 ## Ejemplo rápido
 
 ```python
+"""
+Consulta de Ejecución del Gasto de Gobiernos Regionales
+"""
 from consulta_amigable import BTN, ClickBtn, MEFScraper, Rows
 
 steps = [
     Rows(["total"]),
     ClickBtn(BTN.NIVEL_GOBIERNO),
-    Rows(["locales"]),
-    ClickBtn(BTN.GENERICA),
-    Rows(["bienes y servicios"]),
-    ClickBtn(BTN.DEPARTAMENTO),
+    Rows(["regionales"]),
+    ClickBtn(BTN.SECTOR),
+    Rows(["regionales"]),
+    ClickBtn(BTN.PLIEGO),
 ]
 
-df = MEFScraper(steps).run(2023).result
+df = MEFScraper(steps, backend="pandas").run(2026).df
+df.to_csv(data_dir / "gobiernos_regionales_2026.csv", index=False)
 print(df.head())
 ```
 
